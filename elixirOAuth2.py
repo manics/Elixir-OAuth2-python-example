@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+from base64 import urlsafe_b64decode
 from flask import Flask, abort, request
+import json
 from uuid import uuid4
 import requests
 import requests.auth
@@ -58,7 +60,13 @@ def elixir_callback():
     access_token = get_token(code)
     # Note: In most cases, you'll want to store the access token, in, say,
     # a session for use in other parts of your web app.
-    return "Your elixir data is: %s" % get_userdetails(access_token)
+    try:
+        elixir_data = "Your elixir data is: %s" % get_userdetails(access_token)
+    except Exception as e:
+        elixir_data = 'Failed: get_userdetails: %r' % e
+    token_details = get_tokendetails(access_token)
+    return "<p>Your elixir userid is %s</p><p>Token data: %s</p><p>%s</p>" % (
+        token_details['sub'], token_details, elixir_data)
 
 def get_token(code):
     client_auth = requests.auth.HTTPBasicAuth(CLIENT_ID, CLIENT_SECRET)
@@ -73,6 +81,19 @@ def get_token(code):
     token_json = response.json()
     return token_json["access_token"]
 
+# https://github.com/jpadilla/pyjwt/blob/72bb76cb343bb6d0f40fcd0d136898b8ba08c323/jwt/utils.py#L33
+def base64url_decode_json(input):
+    #if isinstance(input, text_type):
+    input = input.encode('ascii')
+    rem = len(input) % 4
+    if rem > 0:
+        input += b'=' * (4 - rem)
+    j = urlsafe_b64decode(input)
+    return json.loads(j)
+
+def get_tokendetails(access_token):
+    t = base64url_decode_json(access_token.split('.')[1])
+    return t
 
 def get_userdetails(access_token):
     headers = base_headers()
